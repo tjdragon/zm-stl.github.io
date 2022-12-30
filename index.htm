@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js" type="application/javascript"></script>
+    <meta charset="UTF-8">
+    <title>Atomic Swap Demo - TJ</title>
+</head>
+
+<body>
+    <h2>Atomic Swap Demo by TJ</h2>
+
+    An atomic swap is an exchange of cryptocurrencies from separate or identical blockchains. <br />
+    The swap is conducted between two entities without a third party's involvement. The idea is to remove centralized intermediaries like regulated exchanges and give token owners total
+    control. <br />
+    The term atomic derives from the term "atomic state" in which a state has no substates; it either happens or it doesn't—there is no other alternative.
+
+    <h3>Code</h3>
+    <a href="https://github.com/tjdragon/zm-stl">https://github.com/tjdragon/zm-stl</a>
+
+    <h3>Demo How-To</h3>
+    <ol>
+        <li>Connect your <a href="https://metamask.io/">Metamask</a> wallet</li>
+        <li>Ensure that the <a href="https://goerli.net/">Goerli</a> network is selected</li>
+        <li>Two wallets will be used, ensure that one wallet has enough <a href="https://etherscan.io/address/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48">USDC
+                (0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48)</a> and
+            <a href="https://etherscan.io/address/0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6">WETH (0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6)</a>. You may want to use
+            <a href="https://app.uniswap.org/#/swap">Uniswap</a>. The Swap smart contract has been created with those tokens addresses.
+        </li>
+        <li>Each wallet will need to call the 'approve' function on each ERC20 to allow for the swap</li>
+        <li>Each wallet will need to invoke the 'trade' function with the same trade parameters. The second call will execute the swap</li>
+        <li>For testing purposes, the <a href="https://goerli.etherscan.io/address/0x6a266153f60c1ccb10c33e048b68b6dc097a62a6">smart contract</a> will allow any caller (no
+            whitelisting)</li>
+    </ol>
+
+    <h3>Let's go!</h3>
+    <h4>Connect your Metamask</h4>
+    <span id="mmi_detected"></span>
+    <button class="getAccountButton">Connect!</button> <label id="selectedAccount"></label>
+
+    <h4>Approve ERC20s</h4>
+    In theory, one counter party would approve only one token (the one to send):
+     <br/> 
+    <button class="approveUSDCButton">Approve UNI!</button> and/or
+    <button class="approveWETHButton">Approve WETH!</button> 
+
+    <h4>Enter the trade details</h4>
+    Each party must call the 'trade' function with the same trade details.
+
+    <ul>
+        <li>Trade Id: <input type="text" id="z_trade_id" size="5" name="fname" value="tid-2"></li>
+
+        <li>Base Amount (UNI): <input type="text" id="z_base_amnt" size="5" name="fname" value="0.001"></li>
+        <li>Base Counterparty Address: <input type="text" id="z_base_cpy" size="42" name="fname" value="0xD1eCf18C4703F524B787B9A44d7EcF58365EA74F"></li>
+        <li>Base Token (UNI) Address: <input type="text" id="z_base_tok" size="42" name="fname" value="0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984"></li>
+
+        <li>Term Amount (WETH): <input type="text" id="z_term_amnt" size="5" name="fname" value="0.002"></li>
+        <li>Term Counterparty Address: <input type="text" id="z_term_cpy" size="42" name="fname" value="0x286F036f725356e3f88b036A22282978E83E2277"></li>
+        <li>Term Token (WETH) Address: <input type="text" id="z_term_tok" size="42" name="fname" value="0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6"></li>
+    </ul>
+
+    <button onclick="submitTrade()">Submit Trade!</button>
+
+    <h4>Get Trade Details</h4>
+    Trade Id: <input type="text" id="g_trade_id" size="5" name="fname" value="tid-2">
+    <button onclick="getTrade()">Get Trade!</button>
+    <br/>
+    <label id="trade_details"></label>
+
+    <table border="1">
+        <tr>
+            <th>Exists</th>
+            <th>Id</th>
+
+            <th>Base Cp</th>
+            <th>Base Amt</th>
+            <th>Base Token</th>
+
+            <th>Term Cp</th>
+            <th>Term Amt</th>
+            <th>Term Token</th>
+
+            <th>Created At</th>
+            <th>Deadline</th>
+            <th>Trigger Address</th>
+            <th>Settled</th>
+        </tr>
+        <tr>
+            <td><label id="t.exists"></label></td>
+            <td><label id="t.id"></label></td>
+
+            <td><label id="t.bcp"></label></td>
+            <td><label id="t.bam"></label></td>
+            <td><label id="t.bto"></label></td>
+
+            <td><label id="t.tcp"></label></td>
+            <td><label id="t.tam"></label></td>
+            <td><label id="t.tto"></label></td>
+
+            <td><label id="t.cat"></label></td>
+            <td><label id="t.dea"></label></td>
+            <td><label id="t.tad"></label></td>
+            <td><label id="t.stl"></label></td>
+        </tr>
+    </table>
+
+    <script>
+        const intercessor = '0x922519747c70e12cf3f5acae3ff9db3a88f522e3';
+        const intercessor_abi = [
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "base_token_address",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "term_token_address",
+						"type": "address"
+					}
+				],
+				"stateMutability": "nonpayable",
+				"type": "constructor"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "previousOwner",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "OwnershipTransferred",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"internalType": "address",
+						"name": "adr",
+						"type": "address"
+					}
+				],
+				"name": "ParticipantAddedEvent",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"internalType": "address",
+						"name": "adr",
+						"type": "address"
+					}
+				],
+				"name": "ParticipantRemovedEvent",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"components": [
+							{
+								"internalType": "bool",
+								"name": "exists",
+								"type": "bool"
+							},
+							{
+								"internalType": "string",
+								"name": "trade_id",
+								"type": "string"
+							},
+							{
+								"internalType": "address",
+								"name": "base_cp",
+								"type": "address"
+							},
+							{
+								"internalType": "uint256",
+								"name": "base_amt",
+								"type": "uint256"
+							},
+							{
+								"internalType": "address",
+								"name": "base_token",
+								"type": "address"
+							},
+							{
+								"internalType": "address",
+								"name": "term_cp",
+								"type": "address"
+							},
+							{
+								"internalType": "uint256",
+								"name": "term_amt",
+								"type": "uint256"
+							},
+							{
+								"internalType": "address",
+								"name": "term_token",
+								"type": "address"
+							},
+							{
+								"internalType": "uint256",
+								"name": "creation_time",
+								"type": "uint256"
+							},
+							{
+								"internalType": "uint256",
+								"name": "deadline",
+								"type": "uint256"
+							},
+							{
+								"internalType": "address",
+								"name": "trigger_address",
+								"type": "address"
+							},
+							{
+								"internalType": "bool",
+								"name": "settled",
+								"type": "bool"
+							}
+						],
+						"indexed": false,
+						"internalType": "struct IntercessorERC20V1.SltDatum",
+						"name": "datum",
+						"type": "tuple"
+					}
+				],
+				"name": "TradeEntryCreatedEvent",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"components": [
+							{
+								"internalType": "bool",
+								"name": "exists",
+								"type": "bool"
+							},
+							{
+								"internalType": "string",
+								"name": "trade_id",
+								"type": "string"
+							},
+							{
+								"internalType": "address",
+								"name": "base_cp",
+								"type": "address"
+							},
+							{
+								"internalType": "uint256",
+								"name": "base_amt",
+								"type": "uint256"
+							},
+							{
+								"internalType": "address",
+								"name": "base_token",
+								"type": "address"
+							},
+							{
+								"internalType": "address",
+								"name": "term_cp",
+								"type": "address"
+							},
+							{
+								"internalType": "uint256",
+								"name": "term_amt",
+								"type": "uint256"
+							},
+							{
+								"internalType": "address",
+								"name": "term_token",
+								"type": "address"
+							},
+							{
+								"internalType": "uint256",
+								"name": "creation_time",
+								"type": "uint256"
+							},
+							{
+								"internalType": "uint256",
+								"name": "deadline",
+								"type": "uint256"
+							},
+							{
+								"internalType": "address",
+								"name": "trigger_address",
+								"type": "address"
+							},
+							{
+								"internalType": "bool",
+								"name": "settled",
+								"type": "bool"
+							}
+						],
+						"indexed": false,
+						"internalType": "struct IntercessorERC20V1.SltDatum",
+						"name": "datum",
+						"type": "tuple"
+					}
+				],
+				"name": "TradeSwapEvent",
+				"type": "event"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "participant",
+						"type": "address"
+					}
+				],
+				"name": "add_participant",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "owner",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "participant",
+						"type": "address"
+					}
+				],
+				"name": "remove_participant",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "renounceOwnership",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "string",
+						"name": "trade_id",
+						"type": "string"
+					}
+				],
+				"name": "stl_data",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					},
+					{
+						"internalType": "string",
+						"name": "",
+						"type": "string"
+					},
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					},
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "string",
+						"name": "trade_id",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "base_amount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "base_counter_party",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "base_token_address",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "term_amount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "term_counter_party",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "term_token_address",
+						"type": "address"
+					}
+				],
+				"name": "trade",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "transferOwnership",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			}
+		];
+
+        const erc20_abi = [
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "spender",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "approve",
+				"outputs": [
+					{
+						"internalType": "bool",
+						"name": "",
+						"type": "bool"
+					}
+				],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			}
+		];
+
+        const detectMetamask = async () => {
+            console.log("Detecting MM");
+            if (typeof window.ethereum !== 'undefined') {
+            } else {
+                document.getElementById("mmi_detected").innerText = "Please install the Metamask plugin";
+            }
+        }
+
+        detectMetamask();
+
+        async function getETHAccount() {
+            accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+            console.log("Selected account: ", accounts[0]);
+            document.getElementById('selectedAccount').innerHTML = accounts[0];
+        }
+
+        const getETHAccountButton = document.querySelector('.getAccountButton');
+        getETHAccountButton.addEventListener('click', () => {
+            getETHAccount();
+        });
+
+        async function approve(contract_address) {
+            console.log("Approving: ", contract_address);
+
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer = provider.getSigner();
+            const contract = new ethers.Contract(contract_address, erc20_abi, signer);
+            const maxStlAmount = ethers.utils.parseUnits("1.0","ether");
+            await contract.approve(intercessor, maxStlAmount); // Defaults to one ETH
+        }
+
+        const approveUSDCButton = document.querySelector(".approveUSDCButton");
+        approveUSDCButton.addEventListener('click', () => {
+            approve('0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984');
+        });
+
+        const approveWETHButton = document.querySelector(".approveWETHButton");
+        approveWETHButton.addEventListener('click', () => {
+            approve('0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6');
+        });
+
+        async function submitTrade() {
+            const trade_id = document.getElementById("z_trade_id").value;
+            const base_amount = document.getElementById("z_base_amnt").value;
+            const base_counter_party = document.getElementById("z_base_cpy").value;
+            const base_token_address = document.getElementById("z_base_tok").value;
+            const term_amount = document.getElementById("z_term_amnt").value;
+            const term_counter_party = document.getElementById("z_term_cpy").value;
+            const term_token_address = document.getElementById("z_term_tok").value;
+
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer = provider.getSigner();
+            const contract = new ethers.Contract(intercessor, intercessor_abi, signer);
+
+            const base_counter_party_weis = ethers.utils.parseUnits(base_amount, "ether");
+            const term_counter_party_weis = ethers.utils.parseUnits(term_amount, "ether");
+
+            console.log("trade_id", trade_id);
+            console.log("base_counter_party_weis", base_counter_party_weis);
+            console.log("base_counter_party", base_counter_party);
+            console.log("base_token_address", base_token_address);
+            console.log("term_counter_party_weis", term_counter_party_weis);
+            console.log("term_counter_party", term_counter_party);
+            console.log("term_token_address", term_token_address);
+
+            await contract.trade(
+                trade_id, 
+                base_counter_party_weis, base_counter_party, base_token_address, 
+                term_counter_party_weis, term_counter_party, term_token_address);
+        }
+
+        async function getTrade() {
+            const trade_id = document.getElementById("g_trade_id").value;
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer = provider.getSigner();
+            const contract = new ethers.Contract(intercessor, intercessor_abi, signer);
+
+            const trade_data = await contract.stl_data(trade_id);
+            // document.getElementById('trade_details').innerHTML = trade_data;
+
+            document.getElementById('t.exists').innerHTML = trade_data[0];
+            document.getElementById('t.id').innerHTML = trade_data[1];       
+
+            document.getElementById('t.bcp').innerHTML = trade_data[2];       
+            document.getElementById('t.bam').innerHTML = trade_data[3];       
+            document.getElementById('t.bto').innerHTML = trade_data[4];    
+            
+            document.getElementById('t.tcp').innerHTML = trade_data[5];       
+            document.getElementById('t.tam').innerHTML = trade_data[6];       
+            document.getElementById('t.tto').innerHTML = trade_data[7];       
+
+            document.getElementById('t.cat').innerHTML = trade_data[8];       
+            document.getElementById('t.dea').innerHTML = trade_data[9];       
+            document.getElementById('t.tad').innerHTML = trade_data[10];       
+            document.getElementById('t.stl').innerHTML = trade_data[11];       
+        }
+    </script>
+</body>
+
+// 0.2 WETH
+// 0.164308545801462833 UNI
+</html>
